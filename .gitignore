@@ -1,0 +1,5 @@
+/.idea/
+/local/fluid-viewhelper/.env
+/local/fluid-viewhelper/core/
+/local/fluid-viewhelper/generator/
+/local/fluid-viewhelper/schemas/

@@ -1,0 +1,43 @@
+version: '3'
+services:
+
+  build:
+    image: typo3/fluid-schema-generator
+    build: .
+
+  install:
+    image: typo3/fluid-schema-generator
+    user: "${UID}:${GID}"
+    volumes:
+      - .:/fluid-schema-generator
+    environment:
+      - SCRIPT_VERBOSE=0
+      - BRANCH=11.5
+    command: >
+      /bin/sh -c '
+        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -x;
+        [ ! -d core ] && git clone --branch $${BRANCH} --single-branch -- https://github.com/typo3/typo3 core;
+        [ ! -d generator ] && git clone -- https://github.com/TYPO3-Documentation/fluid-documentation-generator.git generator;
+        cd core && composer require -o -n --no-progress typo3/fluid-schema-generator "^2.1" && cd -;
+      '
+
+  generate:
+    image: typo3/fluid-schema-generator
+    user: "${UID}:${GID}"
+    volumes:
+      - .:/fluid-schema-generator
+    environment:
+      - SCRIPT_VERBOSE=0
+    command: >
+      /bin/sh -c '
+        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -x;
+        cd core;
+        mkdir -p ../schemas/typo3fluid/fluid/latest;
+        ./bin/generateschema TYPO3Fluid\\\Fluid > ../schemas/typo3fluid/fluid/latest/schema.xsd;
+        mkdir -p ../schemas/typo3/core/latest;
+        ./bin/generateschema TYPO3\\\CMS\\\Core > ../schemas/typo3/core/latest/schema.xsd;
+        mkdir -p ../schemas/typo3/fluid/latest;
+        ./bin/generateschema TYPO3\\\CMS\\\Fluid > ../schemas/typo3/fluid/latest/schema.xsd;
+        mkdir -p ../schemas/typo3/backend/latest;
+        ./bin/generateschema TYPO3\\\CMS\\\Backend > ../schemas/typo3/backend/latest/schema.xsd;
+      '
