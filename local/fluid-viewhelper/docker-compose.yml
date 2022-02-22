@@ -12,13 +12,34 @@ services:
       - .:/fluid-schema-generator
     environment:
       - SCRIPT_VERBOSE=0
-      - BRANCH=11.5
     command: >
       /bin/sh -c '
-        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -x;
-        [ ! -d core ] && git clone --branch $${BRANCH} --single-branch -- https://github.com/typo3/typo3 core;
-        [ ! -d generator ] && git clone -- https://github.com/TYPO3-Documentation/fluid-documentation-generator.git generator;
-        cd core && composer require -o -n --no-progress typo3/fluid-schema-generator "^2.1" && cd -;
+        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -ex || set -e;
+        [ ! -d core ] && git clone https://github.com/typo3/typo3 core;
+        [ ! -d generator ] && git clone https://github.com/TYPO3-Documentation/fluid-documentation-generator.git generator;
+        if [ ! -d core/vendor ]; then
+          cd core;
+          composer require -o -n --no-progress typo3/fluid-schema-generator "^2.1";
+        fi;
+      '
+  
+  update:
+    image: typo3/fluid-schema-generator
+    user: "${UID}:${GID}"
+    volumes:
+      - .:/fluid-schema-generator
+    environment:
+      - SCRIPT_VERBOSE=0
+    command: >
+      /bin/sh -c '
+        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -ex || set -e;
+        [ -d core ] && cd core && git fetch --prune && cd - > /dev/null;
+        [ -d generator ] && cd generator && git fetch --prune && cd - > /dev/null;
+        cd core;
+        git checkout -f main;
+        git reset --hard origin/main;
+        rm -rf vendor;
+        composer require -o -n --no-progress typo3/fluid-schema-generator "^2.1";
       '
 
   generate:
@@ -28,16 +49,30 @@ services:
       - .:/fluid-schema-generator
     environment:
       - SCRIPT_VERBOSE=0
+      - BRANCH=11.5
     command: >
       /bin/sh -c '
-        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -x;
+        [ "$${SCRIPT_VERBOSE}" -eq "1" ] && set -ex || set -e;
+        
+        # Switch TYPO3 branch
         cd core;
-        mkdir -p ../schemas/typo3fluid/fluid/latest;
-        ./bin/generateschema TYPO3Fluid\\\Fluid > ../schemas/typo3fluid/fluid/latest/schema.xsd;
-        mkdir -p ../schemas/typo3/core/latest;
-        ./bin/generateschema TYPO3\\\CMS\\\Core > ../schemas/typo3/core/latest/schema.xsd;
-        mkdir -p ../schemas/typo3/fluid/latest;
-        ./bin/generateschema TYPO3\\\CMS\\\Fluid > ../schemas/typo3/fluid/latest/schema.xsd;
-        mkdir -p ../schemas/typo3/backend/latest;
-        ./bin/generateschema TYPO3\\\CMS\\\Backend > ../schemas/typo3/backend/latest/schema.xsd;
+        CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2> /dev/null);
+        if [ "$${CURRENT_BRANCH}" != "$${BRANCH}" ]; then
+          git checkout -f $${BRANCH};
+          git reset --hard origin/$${BRANCH};
+          rm -rf vendor;
+          composer require -o -n --no-progress typo3/fluid-schema-generator "^2.1";
+        fi;
+        
+        # Generate all Fluid view helper schemas
+        set +e;
+        rm -rf ../schemas/$${BRANCH};
+        mkdir -p ../schemas/$${BRANCH}/typo3fluid/fluid;
+        ./bin/generateschema TYPO3Fluid\\\Fluid > ../schemas/$${BRANCH}/typo3fluid/fluid/schema.xsd;
+        mkdir -p ../schemas/$${BRANCH}/typo3/core;
+        ./bin/generateschema TYPO3\\\CMS\\\Core > ../schemas/$${BRANCH}/typo3/core/schema.xsd;
+        mkdir -p ../schemas/$${BRANCH}/typo3/fluid;
+        ./bin/generateschema TYPO3\\\CMS\\\Fluid > ../schemas/$${BRANCH}/typo3/fluid/schema.xsd;
+        mkdir -p ../schemas/$${BRANCH}/typo3/backend;
+        ./bin/generateschema TYPO3\\\CMS\\\Backend > ../schemas/$${BRANCH}/typo3/backend/schema.xsd;
       '

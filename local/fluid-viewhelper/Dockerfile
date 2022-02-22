@@ -10,9 +10,11 @@ RUN apt-get -q --no-allow-insecure-repositories update \
    && apt-get install --assume-yes --no-install-recommends \
          git \
          unzip \
+         libicu-dev \
          libzip-dev \
    && docker-php-ext-install \
          zip \
+         intl \
    && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
